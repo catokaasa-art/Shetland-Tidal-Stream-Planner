@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shetland">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="Tidal passage planner for Shetland Islands">
+<title>Shetland Passage Planner</title>
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Shetland%20Passage%20Planner%22%2C%22short_name%22%3A%22Shetland%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%230f172a%22%7D">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body,#root{background:#0f172a;color:#e2e8f0;min-height:100vh;min-height:100dvh}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}
+input,button{-webkit-appearance:none;appearance:none;font-family:inherit;outline:none}
+input[type="date"],input[type="time"],input[type="number"]{font-family:"SF Mono",ui-monospace,SFMono-Regular,monospace}
+::-webkit-scrollbar{display:none}
+.leaflet-container{background:#1a2744!important}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-up{animation:fadeUp .35s ease-out both}
+.glass{background:rgba(15,23,42,0.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(100,116,139,0.12);border-radius:12px}
+.inp{background:rgba(30,41,59,0.8);border:1px solid rgba(100,116,139,0.2);border-radius:8px;color:#e2e8f0;padding:8px 10px;font-size:14px;width:100%;transition:border-color .2s}
+.inp:focus{border-color:#3b82f6}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useMemo,useEffect,useCallback,useRef}=React;
+
+// ═══ TIDES ═══
+const T={"2026-05-01":{"h":["11:40|1.9","23:55|1.9"],"l":["05:22|0.5","17:38|0.4"]},"2026-05-02":{"h":["12:15|1.9"],"l":["05:55|0.5","18:09|0.5"]},"2026-05-03":{"h":["00:25|2.0","12:49|1.9"],"l":["06:28|0.5","18:39|0.6"]},"2026-05-04":{"h":["00:54|1.9","13:24|1.8"],"l":["07:01|0.5","19:10|0.6"]},"2026-05-05":{"h":["01:24|1.9","13:59|1.8"],"l":["07:36|0.6","19:42|0.7"]},"2026-05-06":{"h":["01:55|1.9","14:37|1.7"],"l":["08:14|0.6","20:17|0.8"]},"2026-05-07":{"h":["02:31|1.8","15:21|1.6"],"l":["08:56|0.7","20:57|0.9"]},"2026-05-08":{"h":["03:13|1.7","16:13|1.5"],"l":["09:49|0.7","21:52|1.0"]},"2026-05-09":{"h":["04:05|1.6","17:13|1.4"],"l":["10:57|0.8","23:10|1.0"]},"2026-05-10":{"h":["05:08|1.6","18:25|1.4"],"l":["12:16|0.7"]},"2026-05-11":{"h":["06:19|1.6","19:43|1.5"],"l":["00:42|1.0","13:22|0.7"]},"2026-05-12":{"h":["07:37|1.6","20:40|1.6"],"l":["01:47|0.9","14:17|0.6"]},"2026-05-13":{"h":["08:40|1.7","21:26|1.8"],"l":["02:39|0.8","15:06|0.5"]},"2026-05-14":{"h":["09:31|1.9","22:10|1.9"],"l":["03:26|0.6","15:51|0.4"]},"2026-05-15":{"h":["10:19|2.0","22:52|2.0"],"l":["04:10|0.5","16:34|0.3"]},"2026-05-16":{"h":["11:07|2.1","23:35|2.1"],"l":["04:54|0.4","17:18|0.3"]},"2026-05-17":{"h":["11:56|2.1"],"l":["05:39|0.3","18:02|0.3"]},"2026-05-18":{"h":["00:18|2.1","12:47|2.1"],"l":["06:26|0.2","18:47|0.4"]},"2026-05-19":{"h":["01:02|2.1","13:41|2.0"],"l":["07:15|0.2","19:34|0.6"]},"2026-05-20":{"h":["01:49|2.1","14:38|1.9"],"l":["08:08|0.3","20:25|0.7"]},"2026-05-21":{"h":["02:41|2.0","15:36|1.8"],"l":["09:05|0.3","21:20|0.8"]},"2026-05-22":{"h":["03:37|1.9","16:36|1.7"],"l":["10:09|0.4","22:23|0.9"]},"2026-05-23":{"h":["04:38|1.8","17:42|1.6"],"l":["11:22|0.5","23:38|0.9"]},"2026-05-24":{"h":["05:46|1.7","18:52|1.5"],"l":["12:35|0.5"]},"2026-05-25":{"h":["06:59|1.7","19:55|1.6"],"l":["00:55|0.9","13:41|0.6"]},"2026-05-26":{"h":["08:06|1.7","20:48|1.6"],"l":["02:01|0.8","14:36|0.6"]},"2026-05-27":{"h":["09:03|1.7","21:34|1.7"],"l":["02:57|0.8","15:22|0.6"]},"2026-05-28":{"h":["09:52|1.8","22:14|1.8"],"l":["03:43|0.7","16:02|0.6"]},"2026-05-29":{"h":["10:36|1.8","22:52|1.9"],"l":["04:25|0.6","16:38|0.6"]},"2026-05-30":{"h":["11:17|1.8","23:26|1.9"],"l":["05:03|0.6","17:11|0.6"]},"2026-05-31":{"h":["11:56|1.8","23:59|1.9"],"l":["05:38|0.6","17:44|0.6"]},"2026-06-01":{"h":["12:33|1.8"],"l":["06:13|0.5","18:17|0.7"]},"2026-06-02":{"h":["00:33|1.9","13:10|1.8"],"l":["06:48|0.5","18:51|0.7"]},"2026-06-03":{"h":["01:05|1.9","13:47|1.8"],"l":["07:25|0.5","19:27|0.8"]},"2026-06-04":{"h":["01:39|1.9","14:25|1.7"],"l":["08:03|0.6","20:04|0.8"]},"2026-06-05":{"h":["02:16|1.8","15:06|1.6"],"l":["08:44|0.6","20:44|0.8"]},"2026-06-06":{"h":["02:57|1.8","15:52|1.6"],"l":["09:29|0.6","21:31|0.9"]},"2026-06-07":{"h":["03:45|1.7","16:43|1.6"],"l":["10:20|0.6","22:26|0.9"]},"2026-06-08":{"h":["04:39|1.7","17:39|1.5"],"l":["11:18|0.6","23:31|0.9"]},"2026-06-09":{"h":["05:38|1.7","18:42|1.6"],"l":["12:22|0.6"]},"2026-06-10":{"h":["06:43|1.7","19:46|1.6"],"l":["00:45|0.9","13:26|0.6"]},"2026-06-11":{"h":["07:53|1.7","20:45|1.7"],"l":["01:52|0.8","14:24|0.6"]},"2026-06-12":{"h":["08:56|1.8","21:36|1.9"],"l":["02:50|0.7","15:18|0.5"]},"2026-06-13":{"h":["09:54|1.9","22:25|2.0"],"l":["03:44|0.6","16:09|0.5"]},"2026-06-14":{"h":["10:51|2.0","23:14|2.1"],"l":["04:36|0.5","16:59|0.5"]},"2026-06-15":{"h":["11:47|2.1"],"l":["05:27|0.3","17:48|0.5"]},"2026-06-16":{"h":["00:03|2.1","12:44|2.1"],"l":["06:18|0.2","18:37|0.5"]},"2026-06-17":{"h":["00:53|2.2","13:40|2.0"],"l":["07:09|0.2","19:25|0.6"]},"2026-06-18":{"h":["01:43|2.2","14:32|2.0"],"l":["08:01|0.2","20:14|0.7"]},"2026-06-19":{"h":["02:34|2.1","15:22|1.9"],"l":["08:54|0.2","21:03|0.7"]},"2026-06-20":{"h":["03:25|2.0","16:12|1.7"],"l":["09:47|0.3","21:54|0.8"]},"2026-06-21":{"h":["04:16|1.9","17:03|1.6"],"l":["10:44|0.5","22:49|0.8"]},"2026-06-22":{"h":["05:11|1.8","17:58|1.6"],"l":["11:44|0.6","23:55|0.9"]},"2026-06-23":{"h":["06:12|1.7","18:58|1.6"],"l":["12:48|0.7"]},"2026-06-24":{"h":["07:20|1.7","19:59|1.6"],"l":["01:12|0.9","13:50|0.7"]},"2026-06-25":{"h":["08:26|1.7","20:54|1.7"],"l":["02:22|0.9","14:45|0.8"]},"2026-06-26":{"h":["09:24|1.7","21:42|1.8"],"l":["03:20|0.8","15:32|0.8"]},"2026-06-27":{"h":["10:15|1.7","22:26|1.8"],"l":["04:09|0.8","16:14|0.8"]},"2026-06-28":{"h":["11:01|1.8","23:06|1.9"],"l":["04:51|0.7","16:53|0.8"]},"2026-06-29":{"h":["11:42|1.8","23:43|1.9"],"l":["05:28|0.6","17:29|0.8"]},"2026-06-30":{"h":["12:21|1.8"],"l":["06:03|0.6","18:05|0.8"]},"2026-07-01":{"h":["00:19|2.0","12:59|1.8"],"l":["06:38|0.5","18:39|0.7"]},"2026-07-02":{"h":["00:54|2.0","13:35|1.8"],"l":["07:12|0.5","19:14|0.7"]},"2026-07-03":{"h":["01:28|2.0","14:09|1.8"],"l":["07:48|0.5","19:49|0.7"]},"2026-07-04":{"h":["02:03|2.0","14:46|1.8"],"l":["08:25|0.5","20:26|0.7"]},"2026-07-05":{"h":["02:40|1.9","15:25|1.7"],"l":["09:04|0.5","21:06|0.8"]},"2026-07-06":{"h":["03:21|1.9","16:09|1.7"],"l":["09:46|0.6","21:51|0.8"]},"2026-07-07":{"h":["04:07|1.8","16:59|1.7"],"l":["10:34|0.6","22:44|0.8"]},"2026-07-08":{"h":["05:01|1.8","17:56|1.6"],"l":["11:29|0.7","23:49|0.9"]},"2026-07-09":{"h":["06:03|1.8","19:00|1.7"],"l":["12:36|0.7"]},"2026-07-10":{"h":["07:16|1.8","20:09|1.7"],"l":["01:09|0.9","13:48|0.7"]},"2026-07-11":{"h":["08:34|1.8","21:12|1.8"],"l":["02:24|0.8","14:55|0.7"]},"2026-07-12":{"h":["09:43|1.9","22:09|2.0"],"l":["03:29|0.7","15:56|0.7"]},"2026-07-13":{"h":["10:47|2.0","23:03|2.1"],"l":["04:28|0.5","16:51|0.7"]},"2026-07-14":{"h":["11:46|2.1","23:55|2.2"],"l":["05:22|0.3","17:41|0.6"]},"2026-07-15":{"h":["12:40|2.1"],"l":["06:12|0.2","18:27|0.6"]},"2026-07-16":{"h":["00:45|2.2","13:29|2.1"],"l":["06:59|0.1","19:11|0.6"]},"2026-07-17":{"h":["01:32|2.3","14:14|2.0"],"l":["07:45|0.2","19:54|0.6"]},"2026-07-18":{"h":["02:17|2.2","14:56|1.9"],"l":["08:30|0.2","20:36|0.6"]},"2026-07-19":{"h":["03:01|2.2","15:38|1.8"],"l":["09:15|0.4","21:18|0.7"]},"2026-07-20":{"h":["03:45|2.0","16:19|1.7"],"l":["10:00|0.5","22:03|0.8"]},"2026-07-21":{"h":["04:31|1.9","17:03|1.7"],"l":["10:48|0.7","22:57|0.9"]},"2026-07-22":{"h":["05:22|1.7","17:55|1.6"],"l":["11:44|0.8"]},"2026-07-23":{"h":["06:27|1.6","19:03|1.6"],"l":["00:15|1.0","12:53|0.9"]},"2026-07-24":{"h":["07:50|1.6","20:17|1.7"],"l":["01:49|1.0","14:05|1.0"]},"2026-07-25":{"h":["09:03|1.6","21:17|1.7"],"l":["03:03|0.9","15:08|1.0"]},"2026-07-26":{"h":["10:01|1.7","22:06|1.8"],"l":["03:57|0.8","15:59|0.9"]},"2026-07-27":{"h":["10:47|1.7","22:48|1.9"],"l":["04:40|0.8","16:40|0.9"]},"2026-07-28":{"h":["11:27|1.8","23:27|2.0"],"l":["05:15|0.7","17:16|0.8"]},"2026-07-29":{"h":["12:04|1.9"],"l":["05:48|0.6","17:50|0.7"]},"2026-07-30":{"h":["00:03|2.0","12:40|1.9"],"l":["06:20|0.5","18:22|0.7"]},"2026-07-31":{"h":["00:37|2.1","13:13|1.9"],"l":["06:52|0.4","18:55|0.6"]},"2026-08-01":{"h":["01:10|2.1","13:46|1.9"],"l":["07:25|0.4","19:28|0.6"]},"2026-08-02":{"h":["01:43|2.1","14:19|1.9"],"l":["07:59|0.4","20:03|0.6"]},"2026-08-03":{"h":["02:17|2.1","14:55|1.9"],"l":["08:35|0.4","20:40|0.7"]},"2026-08-04":{"h":["02:55|2.0","15:34|1.8"],"l":["09:14|0.5","21:22|0.7"]},"2026-08-05":{"h":["03:37|2.0","16:21|1.8"],"l":["09:58|0.6","22:11|0.8"]},"2026-08-06":{"h":["04:29|1.9","17:16|1.7"],"l":["10:50|0.7","23:15|0.9"]},"2026-08-07":{"h":["05:35|1.8","18:23|1.7"],"l":["11:58|0.9"]},"2026-08-08":{"h":["06:57|1.7","19:44|1.7"],"l":["00:45|0.9","13:30|0.9"]},"2026-08-09":{"h":["08:31|1.8","21:01|1.8"],"l":["02:18|0.8","14:51|0.9"]},"2026-08-10":{"h":["09:47|1.9","22:03|2.0"],"l":["03:29|0.7","15:54|0.8"]},"2026-08-11":{"h":["10:48|2.0","22:57|2.1"],"l":["04:26|0.5","16:45|0.7"]},"2026-08-12":{"h":["11:40|2.1","23:45|2.3"],"l":["05:15|0.3","17:29|0.6"]},"2026-08-13":{"h":["12:25|2.1"],"l":["05:59|0.2","18:10|0.5"]},"2026-08-14":{"h":["00:30|2.3","13:07|2.1"],"l":["06:40|0.1","18:49|0.5"]},"2026-08-15":{"h":["01:12|2.3","13:46|2.1"],"l":["07:21|0.2","19:27|0.5"]},"2026-08-16":{"h":["01:52|2.3","14:22|2.0"],"l":["08:00|0.3","20:05|0.6"]},"2026-08-17":{"h":["02:31|2.2","14:57|1.9"],"l":["08:38|0.4","20:42|0.7"]},"2026-08-18":{"h":["03:09|2.1","15:32|1.8"],"l":["09:15|0.6","21:21|0.8"]},"2026-08-19":{"h":["03:50|1.9","16:11|1.8"],"l":["09:54|0.8","22:07|0.9"]},"2026-08-20":{"h":["04:35|1.7","16:56|1.7"],"l":["10:39|1.0","23:18|1.0"]},"2026-08-21":{"h":["05:33|1.6","17:54|1.6"],"l":["11:50|1.1"]},"2026-08-22":{"h":["07:14|1.5","19:35|1.6"],"l":["01:16|1.1","13:27|1.1"]},"2026-08-23":{"h":["08:48|1.6","20:53|1.7"],"l":["02:42|1.0","14:46|1.1"]},"2026-08-24":{"h":["09:45|1.7","21:45|1.8"],"l":["03:39|0.9","15:40|1.0"]},"2026-08-25":{"h":["10:27|1.8","22:26|1.9"],"l":["04:18|0.8","16:20|0.9"]},"2026-08-26":{"h":["11:04|1.9","23:04|2.0"],"l":["04:51|0.7","16:54|0.8"]},"2026-08-27":{"h":["11:38|1.9","23:39|2.1"],"l":["05:22|0.5","17:25|0.7"]},"2026-08-28":{"h":["12:12|2.0"],"l":["05:52|0.4","17:57|0.6"]},"2026-08-29":{"h":["00:12|2.2","12:44|2.0"],"l":["06:24|0.4","18:29|0.6"]},"2026-08-30":{"h":["00:45|2.2","13:16|2.1"],"l":["06:56|0.3","19:02|0.5"]},"2026-08-31":{"h":["01:17|2.2","13:49|2.0"],"l":["07:30|0.4","19:38|0.5"]},"2026-09-01":{"h":["01:52|2.2","14:23|2.0"],"l":["08:06|0.4","20:16|0.6"]},"2026-09-02":{"h":["02:30|2.1","15:01|2.0"],"l":["08:45|0.6","20:59|0.7"]},"2026-09-03":{"h":["03:14|2.0","15:46|1.9"],"l":["09:28|0.7","21:51|0.8"]},"2026-09-04":{"h":["04:10|1.9","16:44|1.8"],"l":["10:21|0.9","22:59|0.9"]},"2026-09-05":{"h":["05:23|1.8","17:58|1.7"],"l":["11:37|1.0"]},"2026-09-06":{"h":["07:01|1.7","19:35|1.8"],"l":["00:49|0.9","13:35|1.1"]},"2026-09-07":{"h":["08:42|1.8","20:56|1.9"],"l":["02:21|0.8","14:52|1.0"]},"2026-09-08":{"h":["09:48|1.9","21:55|2.0"],"l":["03:26|0.6","15:47|0.9"]},"2026-09-09":{"h":["10:39|2.0","22:44|2.2"],"l":["04:17|0.5","16:31|0.7"]},"2026-09-10":{"h":["11:22|2.1","23:28|2.3"],"l":["04:59|0.3","17:10|0.6"]},"2026-09-11":{"h":["12:02|2.1"],"l":["05:38|0.2","17:47|0.5"]},"2026-09-12":{"h":["00:09|2.3","12:39|2.1"],"l":["06:15|0.2","18:23|0.5"]},"2026-09-13":{"h":["00:47|2.3","13:12|2.1"],"l":["06:51|0.3","18:59|0.5"]},"2026-09-14":{"h":["01:22|2.3","13:44|2.1"],"l":["07:26|0.4","19:34|0.6"]},"2026-09-15":{"h":["01:58|2.2","14:15|2.0"],"l":["08:00|0.6","20:09|0.7"]},"2026-09-16":{"h":["02:34|2.0","14:47|1.9"],"l":["08:32|0.7","20:46|0.8"]},"2026-09-17":{"h":["03:12|1.9","15:23|1.9"],"l":["09:05|0.9","21:28|0.9"]},"2026-09-18":{"h":["03:57|1.7","16:05|1.8"],"l":["09:43|1.1","22:31|1.1"]},"2026-09-19":{"h":["04:53|1.6","17:01|1.7"],"l":["10:46|1.2"]},"2026-09-20":{"h":["06:21|1.5","18:20|1.6"],"l":["00:33|1.1","12:50|1.2"]},"2026-09-21":{"h":["08:25|1.6","20:20|1.7"],"l":["02:03|1.0","14:13|1.2"]},"2026-09-22":{"h":["09:18|1.7","21:14|1.8"],"l":["03:03|0.9","15:08|1.1"]},"2026-09-23":{"h":["09:56|1.8","21:55|1.9"],"l":["03:43|0.8","15:48|0.9"]},"2026-09-24":{"h":["10:31|1.9","22:31|2.0"],"l":["04:16|0.7","16:22|0.8"]},"2026-09-25":{"h":["11:04|2.0","23:06|2.2"],"l":["04:47|0.5","16:55|0.7"]},"2026-09-26":{"h":["11:38|2.1","23:41|2.2"],"l":["05:19|0.4","17:28|0.6"]},"2026-09-27":{"h":["12:11|2.1"],"l":["05:52|0.4","18:02|0.5"]},"2026-09-28":{"h":["00:16|2.3","12:45|2.2"],"l":["06:26|0.4","18:38|0.5"]},"2026-09-29":{"h":["00:53|2.3","13:19|2.2"],"l":["07:02|0.4","19:16|0.5"]},"2026-09-30":{"h":["01:31|2.3","13:55|2.1"],"l":["07:40|0.5","19:58|0.6"]}};
+const pTE=s=>{const[t,h]=s.split("|");return{time:t,height:parseFloat(h)};};
+const gT=d=>{const r=T[d];return r?{hw:r.h.map(pTE),lw:r.l.map(pTE)}:null;};
+
+// ═══ PASSAGES ═══
+const PASSAGES=[
+  {id:"sumburgh",name:"Sumburgh Head",lat:59.83076,lon:-1.27452,sev:"warning",streams:[],warn:"Sumburgh Roost! Check weather, sea state and current."},
+  {id:"papa",name:"Sound of Papa",lat:60.31262,lon:-1.66162,sev:"high",streams:[{dir:"SW",hw:-235,lbl:"HW\u22123:55",fair:"south",deg:225},{dir:"NE",hw:235,lbl:"HW+3:55",fair:"north",deg:45}],warn:"3\u20135 kn springs"},
+  {id:"linga",name:"Linga Sound",lat:60.35792,lon:-1.02519,sev:"high",streams:[{dir:"S",hw:-270,lbl:"HW\u22124:30",fair:"south",deg:180},{dir:"N",hw:135,lbl:"HW+2:15",fair:"north",deg:0}],warn:"5\u20136 kn springs"},
+  {id:"yell-ew",name:"Yell Sound E/W",lat:60.47318,lon:-1.13175,sev:"medium",streams:[{dir:"E",hw:-265,lbl:"HW\u22124:25",fair:"south",deg:90},{dir:"W",hw:5,lbl:"HW+0:05",fair:"north",deg:270}],warn:"2\u20133 kn. Eddy along Yell coast"},
+  {id:"yell-ns",name:"Yell Sound N/S",lat:60.53231,lon:-1.23703,sev:"extreme",streams:[{dir:"S",hw:-325,lbl:"HW\u22125:25",fair:"south",deg:180},{dir:"N",hw:65,lbl:"HW+1:05",fair:"north",deg:0}],warn:"The Rumble! 6\u20137 kn springs!"},
+  {id:"blueS",name:"Bluemull South",lat:60.61222,lon:-0.95856,sev:"extreme",streams:[{dir:"S",hw:365,lbl:"HW+6:05",fair:"south",deg:180},{dir:"N",hw:-25,lbl:"HW\u22120:25",fair:"north",deg:0}],warn:"Opposite to main sound! 6\u20137 kn"},
+  {id:"blueC",name:"Bluemull Main",lat:60.68271,lon:-0.98930,sev:"extreme",streams:[{dir:"S",hw:-265,lbl:"HW\u22124:25",fair:"south",deg:180},{dir:"N",hw:95,lbl:"HW+1:35",fair:"north",deg:0}],warn:"Breaking waves! 6\u20137 kn springs!"},
+  {id:"unstN",name:"Unst North",lat:60.83692,lon:-0.76080,sev:"warning",streams:[],warn:"Strong currents and seas! Check conditions."},
+];
+const DFLT=[{lat:60.154,lon:-1.141,d:0},{lat:60.263,lon:-1.090,d:7.0},{lat:60.352,lon:-1.064,d:12.4},{lat:60.448,lon:-1.039,d:18.2},{lat:60.487,lon:-1.155,d:22.6},{lat:60.521,lon:-1.189,d:24.9},{lat:60.581,lon:-1.212,d:28.6},{lat:60.654,lon:-1.172,d:33.1},{lat:60.610,lon:-1.120,d:37.1}];
+
+// ═══ HELPERS ═══
+const toM=s=>{if(!s)return null;const[h,m]=s.split(":").map(Number);return h*60+m;};
+const fmT=m=>{if(m==null)return"--:--";const v=Math.round(((m%1440)+1440)%1440);return`${String(Math.floor(v/60)).padStart(2,"0")}:${String(v%60).padStart(2,"0")}`;};
+const adj=(d,o)=>{const dt=new Date(d+"T12:00:00");dt.setDate(dt.getDate()+o);return dt.toISOString().slice(0,10);};
+const allHWFor=date=>{let a=[];[[-1,-1440],[0,0],[1,1440]].forEach(([off,m])=>{const t=gT(adj(date,off));if(t)t.hw.forEach(e=>a.push(toM(e.time)+m));});return a;};
+const gRange=t=>{if(!t)return null;const h=Math.max(...t.hw.map(e=>e.height)),l=Math.min(...t.lw.map(e=>e.height));return h-l;};
+const sFact=r=>r==null?null:Math.max(0,Math.min(1,(r-0.7)/0.9));
+const sClk=(allHW,off)=>allHW.map(hw=>hw+off).filter(t=>t>=0&&t<1440).sort((a,b)=>a-b).map(fmT).join(" / ");
+const hav=(a,b,c,d)=>{const R=3440.065,dl=Math.PI/180*(c-a),dn=Math.PI/180*(d-b),x=Math.sin(dl/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x));};
+const matchP=rp=>PASSAGES.map(p=>{let bd=Infinity,brd=0;for(let i=0;i<rp.length-1;i++){const a=rp[i],b=rp[i+1];for(let t=0;t<=1;t+=.1){const la=a.lat+t*(b.lat-a.lat),lo=a.lon+t*(b.lon-a.lon),d=hav(p.lat,p.lon,la,lo);if(d<bd){bd=d;brd=a.d+t*(b.d-a.d);}}}return{...p,rd:Math.round(brd*10)/10,px:Math.round(bd*10)/10,on:bd<3,near:bd<6};}).sort((a,b)=>a.rd-b.rd);
+const parseGPX=t=>{const d=new DOMParser().parseFromString(t,"text/xml");let pts=[];d.querySelectorAll("rtept,trkpt").forEach(x=>pts.push({lat:+x.getAttribute("lat"),lon:+x.getAttribute("lon")}));if(pts.length<2)return null;let tot=0;const res=[{lat:pts[0].lat,lon:pts[0].lon,d:0}];for(let i=1;i<pts.length;i++){const dl=Math.PI/180*(pts[i].lat-pts[i-1].lat),dn=Math.PI/180*(pts[i].lon-pts[i-1].lon),x=Math.sin(dl/2)**2+Math.cos(pts[i-1].lat*Math.PI/180)*Math.cos(pts[i].lat*Math.PI/180)*Math.sin(dn/2)**2;tot+=2*3440.065*Math.asin(Math.sqrt(x));if(i%3===0||i===pts.length-1)res.push({lat:pts[i].lat,lon:pts[i].lon,d:Math.round(tot*100)/100});}return{points:res,totalDist:Math.round(tot*10)/10};};
+
+// ═══ WIND ═══
+const DIRS=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const deg2c=d=>DIRS[Math.round(d/22.5)%16];
+const windVsTide=(wFrom,cDeg)=>{if(wFrom==null||cDeg==null)return false;let d=Math.abs(wFrom-cDeg);if(d>180)d=360-d;return d<60;};
+const fetchWind=(date,set)=>{
+  fetch("https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=60.45&lon=-1.10",{headers:{"User-Agent":"ShetlandPassagePlanner/1.0"}})
+  .then(r=>r.json()).then(data=>{
+    const hrs=data.properties.timeseries.slice(0,48).map(ts=>{const t=new Date(ts.time),i=ts.data.instant.details;return{hour:(t.getUTCHours()+1)%24,speed:i.wind_speed,gust:i.wind_speed_of_gust||null,from:i.wind_from_direction};});
+    set({src:"MET Norway",hrs});
+  }).catch(()=>{
+    const hrs=[];for(let h=0;h<24;h++)hrs.push({hour:h,speed:8+Math.sin(h/4)*4,gust:12+Math.sin(h/4)*5,from:210+Math.sin(h/6)*30});
+    set({src:"Mock (API blocked in sandbox)",hrs});
+  });
+};
+const windAt=(w,h)=>{if(!w)return null;const hr=Math.round(h)%24;return w.hrs.find(x=>x.hour===hr)||w.hrs[0];};
+
+// ═══ PASSAGE CHECK ═══
+const checkP=(p,eta,allHW,dir)=>{
+  if(!p.streams.length)return{light:"warning",txt:p.warn,stream:null};
+  const ch=[];p.streams.forEach(s=>allHW.forEach(hw=>ch.push({t:hw+s.hw,dir:s.dir,fair:s.fair,deg:s.deg})));
+  ch.sort((a,b)=>a.t-b.t);
+  let nd=Infinity,nDir="";ch.forEach(c=>{const d=Math.abs(eta-c.t);if(d<nd){nd=d;nDir=c.dir;}});
+  const dm=Math.round(nd);
+  let active=null;for(let i=ch.length-1;i>=0;i--)if(ch[i].t<=eta){active=ch[i];break;}
+  const fair=active&&active.fair===dir;
+  if(dm<=45)return{light:"green",txt:`SLACK (\u00b1${dm}min)`,stream:active};
+  if(dm<=90)return{light:"yellow",txt:fair?"Near slack, fair building":"Near slack, foul building",stream:active};
+  if(fair)return{light:"yellow",txt:`FAIR TIDE ${active.dir}-going`,stream:active};
+  return{light:"red",txt:`FOUL TIDE ${active?active.dir+"-going":""}`,stream:active};
+};
+
+// ═══ SPRING CHART ═══
+function SpringChart({date}){
+  const days=useMemo(()=>{const d=new Date(date+"T12:00:00"),r=[];for(let i=-10;i<=20;i++){const nd=new Date(d);nd.setDate(nd.getDate()+i);const ds=nd.toISOString().slice(0,10),t=gT(ds),rng=gRange(t);r.push({date:ds,range:rng,sf:sFact(rng),day:nd.getDate(),mon:nd.getMonth()+1,sel:ds===date});}return r;},[date]);
+  const sel=days.find(d=>d.sel);const sf=sel?sel.sf:null;
+  const snCol=sf==null?"#475569":sf>.7?"#ef4444":sf>.3?"#eab308":"#22c55e";
+  const snLbl=sf==null?"":sf>.7?"Springs":sf>.3?"Moderate":"Neaps";
+  const W=580,H=100,P=28,bW=(W-2*P)/days.length;
+  return(<div className="glass" style={{padding:"8px 10px",marginBottom:8}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+      <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>Spring / Neap</span>
+      <span style={{fontSize:12,fontWeight:800,color:snCol}}>{snLbl}</span>
+    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%"}}>
+      {days.map((d,i)=>{if(!d.range)return null;const x=P+i*bW,h2=(d.range/2.2)*(H-2*P),y=H-P-h2,s=d.sf||0,c=s>.7?"#ef4444":s>.3?"#eab308":"#22c55e";
+      return <g key={d.date}><rect x={x+1} y={y} width={bW-2} height={h2} fill={c} opacity={d.sel?1:.35} rx={1}/>{d.sel&&<rect x={x-1} y={y-2} width={bW+2} height={h2+4} fill="none" stroke="#60a5fa" strokeWidth={2} rx={2}/>}{(d.day===1||d.day===15||d.sel)&&<text x={x+bW/2} y={H-2} fill={d.sel?"#60a5fa":"rgba(148,163,184,.35)"} fontSize={d.sel?7:6} textAnchor="middle" fontFamily="monospace" fontWeight={d.sel?700:400}>{d.day}/{d.mon}</text>}</g>;})}
+      <line x1={P} y1={H-P-(1.6/2.2)*(H-2*P)} x2={W-P} y2={H-P-(1.6/2.2)*(H-2*P)} stroke="rgba(239,68,68,.2)" strokeDasharray="3 3"/>
+      <line x1={P} y1={H-P-(.7/2.2)*(H-2*P)} x2={W-P} y2={H-P-(.7/2.2)*(H-2*P)} stroke="rgba(34,197,94,.2)" strokeDasharray="3 3"/>
+      <text x={W-P+3} y={H-P-(1.6/2.2)*(H-2*P)+3} fill="rgba(239,68,68,.4)" fontSize={6}>Springs</text>
+      <text x={W-P+3} y={H-P-(.7/2.2)*(H-2*P)+3} fill="rgba(34,197,94,.4)" fontSize={6}>Neaps</text>
+    </svg>
+  </div>);
+}
+
+// ═══ TIDAL CURVE ═══
+function TidalCurve({tides,marker}){
+  if(!tides)return null;
+  const ev=[];tides.hw.forEach(e=>ev.push({m:toM(e.time),t:"HW"}));tides.lw.forEach(e=>ev.push({m:toM(e.time),t:"LW"}));ev.sort((a,b)=>a.m-b.m);
+  if(ev.length<2)return null;
+  const W=600,H=55,P=28,sx=t=>P+(t/1440)*(W-2*P),sy=t=>t==="HW"?10:H-10;
+  const pts=ev.map(e=>({x:sx(e.m),y:sy(e.t)}));
+  let d=`M ${pts[0].x} ${pts[0].y}`;for(let i=1;i<pts.length;i++){const cx=(pts[i-1].x+pts[i].x)/2;d+=` C ${cx} ${pts[i-1].y}, ${cx} ${pts[i].y}, ${pts[i].x} ${pts[i].y}`;}
+  return <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%"}}>{[0,6,12,18,24].map(h=><g key={h}><line x1={sx(h*60)} y1={4} x2={sx(h*60)} y2={H-4} stroke="rgba(148,163,184,.07)"/><text x={sx(h*60)} y={H} fill="rgba(148,163,184,.2)" fontSize={7} textAnchor="middle" fontFamily="monospace">{String(h%24).padStart(2,"0")}</text></g>)}<path d={d} fill="none" stroke="#60a5fa" strokeWidth={2}/>{ev.map((e,i)=><g key={i}><circle cx={sx(e.m)} cy={sy(e.t)} r={3} fill={e.t==="HW"?"#3b82f6":"#1e40af"} stroke="#0f172a" strokeWidth={1}/><text x={sx(e.m)} y={sy(e.t)+(e.t==="HW"?-6:10)} fill="#94a3b8" fontSize={6.5} textAnchor="middle" fontFamily="monospace">{e.t} {fmT(e.m)}</text></g>)}{marker!=null&&<line x1={sx(marker)} y1={4} x2={sx(marker)} y2={H-6} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="3 2"/>}</svg>;
+}
+
+// ═══ MAP ═══
+function LMap({rp,matched,depM,allHW,speed,routeDir}){
+  const ref=useRef(),mapR=useRef(),lyR=useRef([]);
+  useEffect(()=>{if(mapR.current)return;if(!window.L||!ref.current)return;const m=L.map(ref.current).setView([60.45,-1.1],9);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:15,attribution:"\u00a9 OSM"}).addTo(m);mapR.current=m;},[]);
+  const draw=useCallback(()=>{
+    if(!mapR.current)return;const m=mapR.current;lyR.current.forEach(l=>m.removeLayer(l));lyR.current=[];
+    const add=l=>{lyR.current.push(l.addTo(m));return l;};
+    const ll=rp.map(p=>[p.lat,p.lon]);
+    add(L.polyline(ll,{color:"#1e40af",weight:8,opacity:.2}));add(L.polyline(ll,{color:"#3b82f6",weight:3,opacity:.9}));
+    matched.forEach(p=>{
+      if(!p.on&&!p.near)return;
+      const eta=depM!=null&&p.on?Math.round(depM+(p.rd/speed)*60):null;
+      const chk=eta!=null?checkP(p,eta,allHW,routeDir):{light:p.sev==="warning"?"warning":"unk"};
+      const col=({green:"#22c55e",yellow:"#eab308",red:"#dc2626",warning:"#f59e0b"})[chk.light]||"#64748b";
+      const sz=p.on?18:12;
+      const ic=L.divIcon({className:"",html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${col};border:2px solid #0f172a;opacity:${p.on?1:.4}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+      add(L.marker([p.lat,p.lon],{icon:ic})).bindTooltip(`<b style="color:${col}">${p.name}</b>${eta!=null?`<br>ETA: ${fmT(eta)}<br>${chk.txt}`:""}`,{direction:"right"});
+      if(depM!=null&&p.on&&eta!=null){const lb=L.divIcon({className:"",html:`<div style="background:${col}dd;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:monospace">${fmT(eta)}</div>`,iconSize:[0,0],iconAnchor:[-sz/2-4,8]});add(L.marker([p.lat,p.lon],{icon:lb,interactive:false}));}
+    });
+    if(ll.length>1)m.fitBounds(ll,{padding:[40,40]});
+  },[rp,matched,depM,allHW,speed,routeDir]);
+  useEffect(()=>{if(mapR.current)draw();},[draw]);
+  return <div ref={ref} style={{width:"100%",height:420,borderRadius:12,border:"1px solid rgba(100,116,139,.12)",overflow:"hidden",background:"#1a2744"}}/>;
+}
+
+// ═══ WIND BADGE ═══
+function WindBadge({w,stream}){
+  if(!w)return <span style={{fontSize:9,color:"#475569"}}>No wind data</span>;
+  const spd=Math.round(w.speed),gust=w.gust?Math.round(w.gust):null,from=Math.round(w.from);
+  const wCol=spd>=25?"#dc2626":spd>=15?"#eab308":"#94a3b8";
+  const wat=stream&&stream.deg!=null&&spd>=10&&windVsTide(from,stream.deg);
+  return <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+    <span style={{fontSize:14,color:wCol,transform:`rotate(${from+180}deg)`,display:"inline-block"}}>{"\u2191"}</span>
+    <span style={{fontSize:11,fontWeight:700,fontFamily:"monospace",color:wCol}}>{spd}kn</span>
+    {gust&&gust>spd+3&&<span style={{fontSize:9,color:"#64748b"}}>G{gust}</span>}
+    <span style={{fontSize:9,color:"#64748b"}}>{deg2c(from)}</span>
+    {wat&&<span style={{fontSize:8,fontWeight:700,color:"#dc2626",background:"rgba(220,38,38,.12)",padding:"2px 6px",borderRadius:4}}>WIND vs TIDE!</span>}
+  </div>;
+}
+
+// ═══ APP ═══
+function App(){
+  const[date,setDate]=useState("2026-07-15");
+  const[depT,setDepT]=useState("");
+  const[speed,setSpeed]=useState(6.5);
+  const[gpx,setGpx]=useState(null);
+  const[wind,setWind]=useState(null);
+
+  const tides=useMemo(()=>gT(date),[date]);
+  const allHW=useMemo(()=>allHWFor(date),[date]);
+  const depM=depT?toM(depT):null;
+  const rp=gpx?gpx.points:DFLT;
+  const routeDir=rp.length>=2&&rp[rp.length-1].lat>rp[0].lat?"north":"south";
+  const matched=useMemo(()=>matchP(rp),[rp]);
+  const onRoute=matched.filter(p=>p.on);
+  const nearby=matched.filter(p=>p.near&&!p.on);
+
+  useEffect(()=>{fetchWind(date,setWind);},[date]);
+
+  const lCol=lv=>({green:"#22c55e",yellow:"#eab308",red:"#dc2626",warning:"#f59e0b"})[lv]||"#64748b";
+
+  return <div style={{padding:"12px 10px",maxWidth:600,margin:"0 auto"}}>
+    <h1 style={{fontSize:19,fontWeight:800,textAlign:"center",color:"#60a5fa",marginBottom:10,letterSpacing:"-.3px"}}>Shetland Passage Planner</h1>
+
+    <div className="glass" style={{padding:12,marginBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+        <div><div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>DATE</div><input className="inp" type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+        <div><div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>DEPARTURE</div><input className="inp" type="time" value={depT} onChange={e=>setDepT(e.target.value)}/></div>
+        <div><div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>SPEED (KN)</div><input className="inp" type="number" value={speed} min={1} max={12} step={.5} onChange={e=>setSpeed(+e.target.value)}/></div>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
+        <label style={{fontSize:10,color:"#60a5fa",cursor:"pointer",background:"rgba(59,130,246,.08)",border:"1px solid rgba(59,130,246,.2)",borderRadius:6,padding:"4px 10px",fontWeight:700}}>Upload GPX<input type="file" accept=".gpx" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const res=parseGPX(ev.target.result);if(res)setGpx(res);}catch(e){}};r.readAsText(f);}} style={{display:"none"}}/></label>
+        <span style={{fontSize:10,color:gpx?"#86efac":"#475569"}}>{gpx?gpx.totalDist+" NM":"Default: 37.4 NM"}</span>
+        <span style={{fontSize:10,color:"#60a5fa",fontWeight:700}}>{routeDir==="north"?"\u2191 Northbound":"\u2193 Southbound"}</span>
+        {wind&&<span style={{fontSize:8,color:"#475569",marginLeft:"auto"}}>{wind.src}</span>}
+      </div>
+      <SpringChart date={date}/>
+      {tides?<TidalCurve tides={tides} marker={depM}/>:<div style={{fontSize:11,color:"#f59e0b",textAlign:"center",padding:8}}>Select May\u2013Sep 2026</div>}
+    </div>
+
+    {tides&&<LMap rp={rp} matched={matched} depM={depM} allHW={allHW} speed={speed} routeDir={routeDir}/>}
+
+    {tides&&onRoute.length>0&&<div style={{marginTop:10}}>
+      {!depM&&<div style={{fontSize:11,color:"#64748b",textAlign:"center",padding:10,background:"rgba(15,23,42,.3)",borderRadius:8,marginBottom:8}}>Set departure time to see passage assessment</div>}
+      {onRoute.map((p,idx)=>{
+        const eta=depM!=null?Math.round(depM+(p.rd/speed)*60):null;
+        const chk=eta!=null?checkP(p,eta,allHW,routeDir):{light:p.sev==="warning"?"warning":"unk",txt:"",stream:null};
+        const col=lCol(chk.light);
+        const w=eta!=null?windAt(wind,Math.floor((eta%1440)/60)):null;
+        return <div key={p.id} className="fade-up" style={{animationDelay:idx*60+"ms",padding:"10px 12px",marginBottom:5,borderLeft:`3px solid ${col}`,borderRadius:8,background:`${col}06`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <span style={{fontSize:13,fontWeight:700}}>{p.name}</span>
+            <span style={{fontSize:9,color:"#64748b",fontFamily:"monospace"}}>{p.rd} NM</span>
+          </div>
+          {eta!=null&&p.streams.length>0&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,padding:"6px 10px",background:`${col}0e`,borderRadius:6}}>
+            <span style={{width:10,height:10,borderRadius:"50%",background:col,flexShrink:0,boxShadow:`0 0 8px ${col}66`}}/>
+            <span style={{fontSize:16,fontWeight:800,fontFamily:"monospace",color:col}}>{fmT(eta)}</span>
+            <span style={{fontSize:10,color:col,fontWeight:600}}>{chk.txt}</span>
+          </div>}
+          {eta!=null&&<div style={{marginBottom:4,padding:"4px 10px",background:"rgba(100,116,139,.04)",borderRadius:5}}>
+            <WindBadge w={w} stream={chk.stream}/>
+          </div>}
+          {p.streams.length>0&&<div style={{fontSize:9,color:"#64748b",lineHeight:1.7}}>
+            {p.streams.map((s,i)=><div key={i}>{s.dir}-going starts: <span style={{fontFamily:"monospace",fontWeight:600}}>{sClk(allHW,s.hw)||s.lbl}</span></div>)}
+          </div>}
+          {p.sev==="warning"&&<div style={{fontSize:10,color:"#f59e0b",fontWeight:600,marginTop:2}}>{p.warn}</div>}
+          {eta!=null&&chk.light==="red"&&<div style={{fontSize:9,color:"#fca5a5",marginTop:3}}>{p.warn}</div>}
+        </div>;
+      })}
+    </div>}
+
+    {tides&&nearby.length>0&&<div style={{marginTop:8}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#fbbf24",marginBottom:4}}>Nearby ({nearby.length})</div>
+      {nearby.map(p=><div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",marginBottom:3,borderLeft:"2px solid rgba(251,191,36,.25)",borderRadius:6,opacity:.6}}>
+        <span style={{fontSize:10,fontFamily:"monospace",color:"#64748b"}}>{p.px}NM</span>
+        <span style={{fontSize:10,color:"#94a3b8"}}>{p.name}</span>
+      </div>)}
+    </div>}
+
+    <div style={{marginTop:14,padding:10,background:"rgba(15,23,42,.3)",borderRadius:8,fontSize:9,color:"#64748b",lineHeight:1.7}}>
+      <div style={{fontWeight:700,color:"#94a3b8",marginBottom:3}}>Traffic lights</div>
+      <span style={{color:"#22c55e"}}>Green</span> = SLACK, \u00b145min from change. <span style={{color:"#eab308"}}>Yellow</span> = \u00b190min or FAIR TIDE. <span style={{color:"#dc2626"}}>Red</span> = FOUL TIDE.
+      <br/><span style={{color:"#dc2626"}}>WIND vs TIDE</span> = wind opposing current. Expect steep seas!
+      <br/>Stream times ref HW Lerwick (BST). Wind: MET Norway. Decision support only!
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
